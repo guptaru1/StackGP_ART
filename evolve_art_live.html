@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EvoArt — Live Equation Evolution</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;
+  --surface:#12121a;
+  --surface2:#1a1a26;
+  --border:#2a2a3a;
+  --accent:#7c6aff;
+  --accent2:#ff6ab0;
+  --accent3:#6affd4;
+  --text:#e8e8f0;
+  --muted:#6a6a88;
+  --mono:'Space Mono',monospace;
+  --display:'Syne',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+
+/* ── HEADER ── */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.2rem 2rem;
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,10,15,0.92);
+  backdrop-filter:blur(12px);
+}
+.logo{font-family:var(--display);font-weight:800;font-size:1.3rem;letter-spacing:-0.02em}
+.logo span{color:var(--accent)}
+.status-pill{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;
+}
+.pulse{
+  width:8px;height:8px;border-radius:50%;background:var(--muted);
+  transition:background 0.3s;
+}
+.pulse.alive{background:var(--accent3);box-shadow:0 0 8px var(--accent3);animation:throb 1.4s ease-in-out infinite}
+@keyframes throb{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ── LAYOUT ── */
+.shell{display:grid;grid-template-columns:1fr 340px;gap:0;height:calc(100vh - 57px)}
+.canvas-zone{position:relative;background:#000;overflow:hidden}
+canvas#art{display:block;width:100%;height:100%;image-rendering:pixelated}
+.overlay-gen{
+  position:absolute;top:16px;left:16px;
+  font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:0.12em;
+}
+.overlay-eq{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:14px 18px;
+  background:linear-gradient(transparent,rgba(0,0,0,0.85));
+  font-size:10px;color:rgba(255,255,255,0.5);word-break:break-all;line-height:1.6;
+}
+.sidebar{
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  overflow-y:auto;background:var(--surface);
+}
+
+/* ── SECTIONS ── */
+.sec{padding:1.2rem 1.4rem;border-bottom:1px solid var(--border)}
+.sec-title{font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);margin-bottom:1rem}
+
+/* ── STATS GRID ── */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{background:var(--surface2);border-radius:8px;padding:10px 12px}
+.stat-label{font-size:9px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px}
+.stat-val{font-size:1.3rem;font-weight:700;color:var(--text);font-family:var(--display)}
+.stat-val.hi{color:var(--accent3)}
+.stat-val.med{color:var(--accent)}
+
+/* ── FITNESS BAR ── */
+.fitness-bar-wrap{margin-top:8px}
+.bar-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+.bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
+.bar-fill.fractal{background:var(--accent)}
+.bar-fill.edge{background:var(--accent2)}
+.bar-fill.golden{background:var(--accent3)}
+
+/* ── CONTROLS ── */
+.ctrl-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ctrl-label{font-size:10px;color:var(--muted);min-width:70px;letter-spacing:0.05em}
+.ctrl-row input[type=range]{flex:1;accent-color:var(--accent)}
+.ctrl-val{font-size:10px;color:var(--text);min-width:28px;text-align:right}
+select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:7px 10px;border-radius:6px;font-family:var(--mono);font-size:11px;
+  cursor:pointer;margin-bottom:10px;appearance:none;
+}
+
+/* ── BUTTONS ── */
+.btn-row{display:flex;gap:8px;margin-top:4px}
+button{
+  flex:1;padding:9px 12px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text);font-family:var(--mono);font-size:11px;
+  cursor:pointer;transition:all 0.15s;letter-spacing:0.03em;
+}
+button:hover{background:var(--border);transform:translateY(-1px)}
+button:active{transform:translateY(0);opacity:0.8}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+button.primary:hover{background:#9580ff}
+button.danger{background:transparent;border-color:#ff6a6a;color:#ff6a6a}
+button.danger:hover{background:rgba(255,106,106,0.1)}
+
+/* ── HALL OF FAME ── */
+.hof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.hof-thumb{
+  aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:pointer;
+  border:2px solid transparent;transition:border-color 0.2s;position:relative;
+}
+.hof-thumb:hover{border-color:var(--accent)}
+.hof-thumb canvas{width:100%;height:100%;display:block}
+.hof-thumb .hof-score{
+  position:absolute;bottom:3px;right:5px;font-size:8px;
+  color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.6);padding:1px 4px;border-radius:3px;
+}
+.empty-hof{font-size:10px;color:var(--muted);text-align:center;padding:1.5rem 0;grid-column:1/-1}
+
+/* ── EQUATION DISPLAY ── */
+.eq-box{
+  background:var(--surface2);border-radius:8px;padding:12px;
+  font-size:9px;line-height:1.8;color:var(--muted);word-break:break-all;
+  min-height:60px;max-height:100px;overflow:auto;
+  border:1px solid var(--border);
+}
+.eq-box span.kw{color:var(--accent)}
+.eq-box span.num{color:var(--accent3)}
+
+/* ── LINEAGE ── */
+.lineage{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.gen-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--border);
+  transition:background 0.3s;flex-shrink:0;
+}
+.gen-dot.done{background:var(--accent);opacity:0.6}
+.gen-dot.active{background:var(--accent3);box-shadow:0 0 6px var(--accent3)}
+
+/* ── POSTER BANNER (bottom) ── */
+.poster-banner{
+  grid-column:1/-1;
+  display:none;
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:10px 24px;
+  align-items:center;justify-content:space-between;gap:16px;
+  font-size:10px;color:var(--muted);
+}
+.poster-banner.show{display:flex}
+.poster-cite{font-style:italic;max-width:500px;line-height:1.6}
+
+/* ── FULLSCREEN / POSTER MODE ── */
+.poster-mode .sidebar{display:none}
+.poster-mode .shell{grid-template-columns:1fr}
+.poster-mode canvas#art{image-rendering:auto}
+
+/* ── LOG ── */
+.log{
+  flex:1;overflow-y:auto;padding:10px 14px;
+  font-size:9px;line-height:1.9;color:var(--muted);
+}
+.log-line{border-bottom:1px solid rgba(255,255,255,0.03);padding:2px 0}
+.log-line .t{color:var(--muted);margin-right:6px}
+.log-line.good .msg{color:var(--accent3)}
+.log-line.warn .msg{color:var(--accent2)}
+.log-line.info .msg{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Evo<span>Art</span> — live equation evolution</div>
+  <div class="status-pill">
+    <div class="pulse" id="statusDot"></div>
+    <span id="statusText">idle</span>
+  </div>
+</header>
+
+<div class="shell" id="shell">
+
+  <!-- ── CANVAS ── -->
+  <div class="canvas-zone">
+    <canvas id="art"></canvas>
+    <div class="overlay-gen" id="overlayGen">GEN 0 / 0</div>
+    <div class="overlay-eq" id="overlayEq">waiting for first evolution…</div>
+  </div>
+
+  <!-- ── SIDEBAR ── -->
+  <div class="sidebar">
+
+    <!-- STATS -->
+    <div class="sec">
+      <div class="sec-title">Live stats</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-label">Generation</div><div class="stat-val med" id="sGen">0</div></div>
+        <div class="stat"><div class="stat-label">Population</div><div class="stat-val" id="sPop">—</div></div>
+        <div class="stat"><div class="stat-label">Best fitness</div><div class="stat-val hi" id="sFit">—</div></div>
+        <div class="stat"><div class="stat-label">Complexity</div><div class="stat-val" id="sComplex">—</div></div>
+      </div>
+      <div class="fitness-bar-wrap" id="fitBars"></div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="sec">
+      <div class="sec-title">Evolution params</div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Generations</span>
+        <input type="range" id="ctrlGens" min="10" max="120" value="40" step="5">
+        <span class="ctrl-val" id="ctrlGensVal">40</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Population</span>
+        <input type="range" id="ctrlPop" min="20" max="200" value="60" step="10">
+        <span class="ctrl-val" id="ctrlPopVal">60</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Resolution</span>
+        <input type="range" id="ctrlRes" min="60" max="300" value="140" step="20">
+        <span class="ctrl-val" id="ctrlResVal">140</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Mutation</span>
+        <input type="range" id="ctrlMut" min="1" max="10" value="4" step="1">
+        <span class="ctrl-val" id="ctrlMutVal">4</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Render mode</span>
+      </div>
+      <select id="ctrlMode">
+        <option value="F1_VS_F2">F1 vs F2 — full transform</option>
+        <option value="POLAR">Polar — radial mandala</option>
+        <option value="F1_VS_X1">F1 vs X — wing sweep</option>
+        <option value="X2_VS_F2">Y vs F2 — vertical warp</option>
+        <option value="RIBBON">Ribbon — parametric fabric</option>
+      </select>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Colormap</span>
+      </div>
+      <select id="ctrlCmap">
+        <option value="plasma">Plasma</option>
+        <option value="turbo">Turbo</option>
+        <option value="viridis">Viridis</option>
+        <option value="inferno">Inferno</option>
+        <option value="cool">Cool</option>
+        <option value="warm">Warm</option>
+        <option value="neon">Neon (custom)</option>
+      </select>
+      <div class="btn-row">
+        <button class="primary" id="btnEvolve">▶ Evolve</button>
+        <button id="btnStep">Step ×1</button>
+        <button class="danger" id="btnReset">Reset</button>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button id="btnSave">⬇ Save PNG</button>
+        <button id="btnPoster">⛶ Poster mode</button>
+      </div>
+    </div>
+
+    <!-- EQUATION -->
+    <div class="sec">
+      <div class="sec-title">Current equation</div>
+      <div class="eq-box" id="eqDisplay">—</div>
+      <div style="margin-top:8px;font-size:9px;color:var(--muted)">F2:</div>
+      <div class="eq-box" style="margin-top:4px" id="eqDisplay2">—</div>
+    </div>
+
+    <!-- LINEAGE -->
+    <div class="sec">
+      <div class="sec-title">Generation lineage</div>
+      <div class="lineage" id="lineage"></div>
+    </div>
+
+    <!-- HALL OF FAME -->
+    <div class="sec">
+      <div class="sec-title">Hall of fame</div>
+      <div class="hof-grid" id="hofGrid">
+        <div class="empty-hof">evolve to populate</div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div class="sec" style="flex:1;padding-bottom:0;display:flex;flex-direction:column;min-height:120px">
+      <div class="sec-title">System log</div>
+      <div class="log" id="sysLog"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- poster banner shown in poster mode -->
+<div class="poster-banner" id="posterBanner">
+  <div class="poster-cite">
+    EvoArt: Real-time Genetic Programming for Generative Visual Art &nbsp;·&nbsp; 
+    Evolved with symbolic regression over 2D function fields, rendered via Samila-style point displacement.
+  </div>
+  <button id="btnExitPoster" style="flex:0">Exit poster mode</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  EVOART — SELF-CONTAINED GP ENGINE + LIVE RENDERER
+// ═══════════════════════════════════════════════════════════
+
+// ── DOM refs ──
+const artCanvas = document.getElementById('art');
+const ctx = artCanvas.getContext('2d');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+// ── State ──
+let running = false;
+let currentGen = 0;
+let bestF1 = null, bestF2 = null;
+let hofList = [];
+let animFrame = null;
+let genTimer = null;
+
+// ── Resize canvas to fill container ──
+function resizeCanvas(){
+  const zone = artCanvas.parentElement;
+  artCanvas.width = zone.clientWidth;
+  artCanvas.height = zone.clientHeight;
+}
+window.addEventListener('resize', ()=>{ resizeCanvas(); if(bestF1) drawArt(bestF1,bestF2); });
+resizeCanvas();
+
+// ─────────────────────────────────────────────────────────
+//  GP ENGINE — symbolic stack-based genetic programming
+// ─────────────────────────────────────────────────────────
+
+const OPS = {
+  add:  (a,b) => a+b,
+  sub:  (a,b) => a-b,
+  mul:  (a,b) => a*b,
+  div:  (a,b) => Math.abs(b)<1e-6 ? 0 : a/b,
+  sin:  (a)   => Math.sin(a),
+  cos:  (a)   => Math.cos(a),
+  tanh: (a)   => Math.tanh(a),
+  abs:  (a)   => Math.abs(a),
+  neg:  (a)   => -a,
+  sqr:  (a)   => a*a,
+  saw:  (a)   => 2*(a/2 - Math.floor(a/2+0.5)),
+  fold: (a)   => Math.abs(Math.sin(a*Math.PI)),
+};
+const OP_NAMES = Object.keys(OPS);
+const OP_ARITIES = {add:2,sub:2,mul:2,div:2,sin:1,cos:1,tanh:1,abs:1,neg:1,sqr:1,saw:1,fold:1};
+const VARS = ['x','y','r','theta','tr','sr'];
+
+// A "genome" is an array of nodes: {type:'op'|'var'|'const', val}
+function randomNode(mut){
+  const r = Math.random();
+  if(r<0.45) return {type:'op', val: OP_NAMES[Math.floor(Math.random()*OP_NAMES.length)]};
+  if(r<0.72) return {type:'var', val: VARS[Math.floor(Math.random()*VARS.length)]};
+  return {type:'const', val: (Math.random()*4-2)};
+}
+
+function randomGenome(len=14){
+  return Array.from({length:len}, ()=>randomNode());
+}
+
+function evalGenome(genome, x, y, r, theta, tr, sr){
+  const stack = [];
+  for(const node of genome){
+    if(node.type==='const'){ stack.push(node.val); continue; }
+    if(node.type==='var'){
+      const map={x,y,r,theta,tr,sr};
+      stack.push(map[node.val]??0); continue;
+    }
+    // op
+    const ar = OP_ARITIES[node.val]??1;
+    if(stack.length<ar){ stack.push(0); continue; }
+    const args = stack.splice(stack.length-ar, ar);
+    let res;
+    try{ res = OPS[node.val](...args); }catch{ res=0; }
+    if(!isFinite(res)||isNaN(res)) res=0;
+    stack.push(Math.max(-10,Math.min(10,res)));
+  }
+  return stack.length>0 ? stack[stack.length-1] : 0;
+}
+
+// ── Vectorised eval over point grid ──
+function evalGrid(genome, xs, ys, rs, thetas, trs, srs){
+  const n = xs.length;
+  const out = new Float32Array(n);
+  for(let i=0;i<n;i++) out[i]=evalGenome(genome,xs[i],ys[i],rs[i],thetas[i],trs[i],srs[i]);
+  return out;
+}
+
+// ── Build point grid ──
+function makeGrid(res){
+  const n=res*res;
+  const xs=new Float32Array(n),ys=new Float32Array(n),
+        rs=new Float32Array(n),thetas=new Float32Array(n),
+        trs=new Float32Array(n),srs=new Float32Array(n);
+  let k=0;
+  for(let j=0;j<res;j++) for(let i=0;i<res;i++){
+    const x=(i/(res-1))*2-1, y=(j/(res-1))*2-1;
+    const r=Math.sqrt(x*x+y*y), theta=Math.atan2(y,x);
+    xs[k]=x;ys[k]=y;rs[k]=r;thetas[k]=theta;trs[k]=theta*r;srs[k]=Math.sin(theta)*r;
+    k++;
+  }
+  return {xs,ys,rs,thetas,trs,srs,n};
+}
+
+// ── Norm ──
+function norm01(arr){
+  let lo=Infinity,hi=-Infinity;
+  for(let i=0;i<arr.length;i++){const v=arr[i];if(v<lo)lo=v;if(v>hi)hi=v;}
+  const range=hi-lo;
+  if(range<1e-9) return new Float32Array(arr.length);
+  const out=new Float32Array(arr.length);
+  for(let i=0;i<arr.length;i++) out[i]=(arr[i]-lo)/range;
+  return out;
+}
+
+// ── FITNESS FUNCTIONS ──
+function fitnessVariance(f1vals){
+  const n=f1vals.length;
+  let mean=0; for(let i=0;i<n;i++) mean+=f1vals[i]; mean/=n;
+  let v=0; for(let i=0;i<n;i++) v+=(f1vals[i]-mean)**2;
+  return Math.min(1, (v/n)*2);
+}
+
+function fitnessEdge(f1vals, res){
+  const norm=norm01(f1vals);
+  let edge=0,count=0;
+  for(let j=0;j<res-1;j++) for(let i=0;i<res-1;i++){
+    const idx=j*res+i;
+    edge+=Math.abs(norm[idx]-norm[idx+1])+Math.abs(norm[idx]-norm[idx+res]);
+    count++;
+  }
+  return Math.min(1,(edge/count)*8);
+}
+
+function fitnessFractal(f1vals, res){
+  const norm=norm01(f1vals);
+  const thresh=0.5;
+  const binary=new Uint8Array(norm.length);
+  for(let i=0;i<norm.length;i++) binary[i]=norm[i]>thresh?1:0;
+  const scales=[Math.max(2,res>>2), Math.max(2,res>>3)];
+  const logC=[],logS=[];
+  for(const s of scales){
+    const bpr=Math.floor(res/s); let count=0;
+    for(let i=0;i<bpr;i++) for(let j=0;j<bpr;j++){
+      let sum=0;
+      for(let di=0;di<s;di++) for(let dj=0;dj<s;dj++) sum+=binary[(i*s+di)*res+(j*s+dj)];
+      if(sum>0) count++;
+    }
+    logC.push(Math.log(count+1));logS.push(Math.log(1/s));
+  }
+  if(logS.length<2) return 0.5;
+  const D=(logC[1]-logC[0])/(logS[1]-logS[0]);
+  const clamped=Math.max(0.5,Math.min(2.5,D));
+  return (clamped>=1.2&&clamped<=1.8)?1.0:Math.max(0,(1-(Math.abs(clamped-1.5)/0.8)));
+}
+
+function combinedFitness(genome, grid, res){
+  const f1=evalGrid(genome,grid.xs,grid.ys,grid.rs,grid.thetas,grid.trs,grid.srs);
+  const varScore=fitnessVariance(f1);
+  const edgeScore=fitnessEdge(f1,res);
+  const fracScore=fitnessFractal(f1,res);
+  return {score: 0.3*varScore+0.35*edgeScore+0.35*fracScore, var:varScore, edge:edgeScore, frac:fracScore};
+}
+
+// ── GENETIC OPERATORS ──
+function mutate(genome, rate){
+  return genome.map(node=>{
+    if(Math.random()>rate) return {...node};
+    return randomNode();
+  });
+}
+
+function crossover(a,b){
+  const pt=Math.floor(Math.random()*Math.min(a.length,b.length));
+  return [...a.slice(0,pt),...b.slice(pt)];
+}
+
+function tournamentSelect(pop, fitnesses, k=4){
+  let best=null,bestF=-1;
+  for(let i=0;i<k;i++){
+    const idx=Math.floor(Math.random()*pop.length);
+    if(fitnesses[idx]>bestF){bestF=fitnesses[idx];best=pop[idx];}
+  }
+  return best;
+}
+
+// ── EVOLUTION STEP ──
+function evolveStep(pop, fitnesses, mutRate){
+  const newPop=[];
+  // elitism: carry top 5%
+  const eliteCount=Math.max(1,Math.floor(pop.length*0.05));
+  const ranked=[...pop.keys()].sort((a,b)=>fitnesses[b]-fitnesses[a]);
+  for(let i=0;i<eliteCount;i++) newPop.push([...pop[ranked[i]]]);
+  while(newPop.length<pop.length){
+    const parent1=tournamentSelect(pop,fitnesses);
+    const r=Math.random();
+    let child;
+    if(r<0.6){
+      const parent2=tournamentSelect(pop,fitnesses);
+      child=crossover(parent1,parent2);
+    } else {
+      child=[...parent1];
+    }
+    child=mutate(child,mutRate);
+    // clamp length
+    if(child.length>24) child=child.slice(0,24);
+    if(child.length<4) child=randomGenome(8);
+    newPop.push(child);
+  }
+  return newPop;
+}
+
+// ─────────────────────────────────────────────────────────
+//  RENDERER — maps f1/f2 fields to pixels
+// ─────────────────────────────────────────────────────────
+
+const CMAPS = {
+  plasma:  t => [Math.round(220*t+13*(1-t)), Math.round(50+80*t), Math.round(200*(1-t)+50*t)],
+  turbo:   t => {const r=Math.sin(Math.PI*t*0.9)*255|0,g=(0.5+0.5*Math.sin(Math.PI*(t-0.3)))*255|0,b=(1-t)*200|0;return[r,g,b]},
+  viridis: t => [Math.round(68+185*t), Math.round(1+200*t*t), Math.round(84+80*Math.sin(t*3))],
+  inferno: t => [Math.round(255*t), Math.round(50*t*t), Math.round(4)],
+  cool:    t => [Math.round(50+180*(1-t)), Math.round(200*t), Math.round(255)],
+  warm:    t => [255, Math.round(200*(1-t)), Math.round(100*(1-t))],
+  neon:    t => [Math.round(255*Math.max(0,Math.sin(t*Math.PI*2))),
+                 Math.round(255*Math.max(0,Math.sin(t*Math.PI*2+2.1))),
+                 Math.round(255*Math.max(0,Math.sin(t*Math.PI*2+4.2)))],
+};
+
+function renderToCanvas(f1vals, f2vals, xs, ys, mode, cmapName, W, H){
+  const imageData = ctx.createImageData(W,H);
+  const data=imageData.data;
+  const cmap=CMAPS[cmapName]||CMAPS.plasma;
+  const n=f1vals.length;
+
+  // Determine px,py per point
+  let pxArr=new Float32Array(n), pyArr=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const f1=f1vals[i],f2=f2vals[i],x=xs[i],y=ys[i];
+    switch(mode){
+      case 'F1_VS_F2': pxArr[i]=f1;pyArr[i]=f2;break;
+      case 'POLAR':{const th=f1*Math.PI,r=Math.abs(f2);pxArr[i]=r*Math.cos(th);pyArr[i]=r*Math.sin(th);break;}
+      case 'F1_VS_X1': pxArr[i]=f1;pyArr[i]=x;break;
+      case 'X2_VS_F2': pxArr[i]=y;pyArr[i]=f2;break;
+      case 'RIBBON':   pxArr[i]=f1;pyArr[i]=f2;break;
+      default:         pxArr[i]=f1;pyArr[i]=f2;
+    }
+  }
+
+  // Normalise to canvas coords
+  let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+  for(let i=0;i<n;i++){if(pxArr[i]<mnx)mnx=pxArr[i];if(pxArr[i]>mxx)mxx=pxArr[i];if(pyArr[i]<mny)mny=pyArr[i];if(pyArr[i]>mxy)mxy=pyArr[i];}
+  const rx=mxx-mnx||1,ry=mxy-mny||1;
+
+  // Color by f1
+  const f1n=norm01(f1vals);
+
+  // Splat points onto image
+  for(let i=0;i<n;i++){
+    const cx=Math.round(((pxArr[i]-mnx)/rx)*(W-1));
+    const cy=Math.round(((pyArr[i]-mny)/ry)*(H-1));
+    if(cx<0||cx>=W||cy<0||cy>=H) continue;
+    const [r,g,b]=cmap(f1n[i]);
+    const idx=(cy*W+cx)*4;
+    data[idx]=r;data[idx+1]=g;data[idx+2]=b;data[idx+3]=220;
+  }
+
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,W,H);
+  ctx.putImageData(imageData,0,0);
+}
+
+function drawArt(g1,g2){
+  const res=parseInt(document.getElementById('ctrlRes').value);
+  const mode=document.getElementById('ctrlMode').value;
+  const cmap=document.getElementById('ctrlCmap').value;
+  const W=artCanvas.width,H=artCanvas.height;
+  const grid=makeGrid(res);
+  const f1=evalGrid(g1,grid.xs,grid.ys,grid.rs,grid.thetas,grid.trs,grid.srs);
+  const f2=evalGrid(g2,grid.xs,grid.ys,grid.rs,grid.thetas,grid.trs,grid.srs);
+  renderToCanvas(f1,f2,grid.xs,grid.ys,mode,cmap,W,H);
+}
+
+// ─────────────────────────────────────────────────────────
+//  EQUATION PRINTER
+// ─────────────────────────────────────────────────────────
+function printEq(genome){
+  const stack=[];
+  for(const node of genome){
+    if(node.type==='const'){stack.push(`<span class="num">${node.val.toFixed(2)}</span>`);continue;}
+    if(node.type==='var'){stack.push(`<span style="color:#ff6ab0">${node.val}</span>`);continue;}
+    const ar=OP_ARITIES[node.val]??1;
+    const args=stack.splice(Math.max(0,stack.length-ar),ar);
+    while(args.length<ar) args.unshift('<span class="num">0</span>');
+    const op=`<span class="kw">${node.val}</span>`;
+    if(ar===2) stack.push(`(${args[0]} ${op} ${args[1]})`);
+    else stack.push(`${op}(${args[0]})`);
+  }
+  return stack.join(' ') || '—';
+}
+
+// ─────────────────────────────────────────────────────────
+//  MAIN EVOLUTION LOOP
+// ─────────────────────────────────────────────────────────
+let state = null;
+
+function initState(){
+  const popSize=parseInt(document.getElementById('ctrlPop').value);
+  const gens=parseInt(document.getElementById('ctrlGens').value);
+  const res=parseInt(document.getElementById('ctrlRes').value);
+  state={
+    popF1: Array.from({length:popSize},()=>randomGenome(10+Math.floor(Math.random()*8))),
+    popF2: Array.from({length:popSize},()=>randomGenome(10+Math.floor(Math.random()*8))),
+    fitF1: new Float32Array(popSize),
+    fitF2: new Float32Array(popSize),
+    fitnessDetails: [],
+    gen:0,
+    maxGens:gens,
+    popSize,
+    res,
+    grid: makeGrid(res),
+  };
+  currentGen=0;
+  buildLineage(gens);
+  log('info',`Init: pop=${popSize}, gens=${gens}, res=${res}`);
+}
+
+function evalPopulation(){
+  const {popF1,popF2,fitF1,fitF2,grid,res,popSize,fitnessDetails}=state;
+  fitnessDetails.length=0;
+  for(let i=0;i<popSize;i++){
+    const r1=combinedFitness(popF1[i],grid,res);
+    const r2=combinedFitness(popF2[i],grid,res);
+    fitF1[i]=r1.score;fitF2[i]=r2.score;
+    fitnessDetails.push(r1);
+  }
+}
+
+function stepGeneration(){
+  if(!state) initState();
+  if(state.gen>=state.maxGens){ stopEvolution(); return; }
+
+  const mutRate=parseInt(document.getElementById('ctrlMut').value)/10;
+
+  evalPopulation();
+
+  // Pick best
+  let bestIdx=0;
+  for(let i=1;i<state.popSize;i++) if(state.fitF1[i]>state.fitF1[bestIdx]) bestIdx=i;
+  bestF1=[...state.popF1[bestIdx]];
+  bestF2=[...state.popF2[bestIdx]];
+
+  const bestDetails=state.fitnessDetails[bestIdx];
+
+  // Evolve
+  state.popF1=evolveStep(state.popF1,state.fitF1,mutRate);
+  state.popF2=evolveStep(state.popF2,state.fitF2,mutRate);
+  state.gen++;
+  currentGen=state.gen;
+
+  // Update UI
+  drawArt(bestF1,bestF2);
+  updateStats(bestDetails, state.gen, state.maxGens, state.popSize, bestF1.length);
+  updateEqDisplay(bestF1,bestF2);
+  updateLineage(state.gen);
+  document.getElementById('overlayGen').textContent=`GEN ${state.gen} / ${state.maxGens}`;
+  log('good',`Gen ${state.gen}: fitness=${state.fitF1[bestIdx].toFixed(3)}, complexity=${bestF1.length}`);
+
+  // Save to HOF every 10 gens or at end
+  if(state.gen%10===0||state.gen===state.maxGens) saveHof(bestF1,bestF2,state.fitF1[bestIdx]);
+}
+
+function startEvolution(){
+  if(running) return;
+  running=true;
+  setStatus('evolving',true);
+  if(!state || state.gen>=state.maxGens) initState();
+
+  const tick=()=>{
+    if(!running) return;
+    stepGeneration();
+    if(state.gen<state.maxGens) genTimer=setTimeout(tick,80);
+    else stopEvolution();
+  };
+  genTimer=setTimeout(tick,50);
+}
+
+function stopEvolution(){
+  running=false;
+  clearTimeout(genTimer);
+  setStatus('idle',false);
+  log('warn','Evolution stopped');
+}
+
+function resetAll(){
+  stopEvolution();
+  state=null;bestF1=null;bestF2=null;hofList=[];
+  ctx.fillStyle='#000';ctx.fillRect(0,0,artCanvas.width,artCanvas.height);
+  document.getElementById('overlayGen').textContent='GEN 0 / 0';
+  document.getElementById('overlayEq').textContent='waiting for first evolution…';
+  document.getElementById('eqDisplay').innerHTML='—';
+  document.getElementById('eqDisplay2').innerHTML='—';
+  document.getElementById('sGen').textContent='0';
+  document.getElementById('sPop').textContent='—';
+  document.getElementById('sFit').textContent='—';
+  document.getElementById('sComplex').textContent='—';
+  document.getElementById('fitBars').innerHTML='';
+  document.getElementById('lineage').innerHTML='';
+  document.getElementById('hofGrid').innerHTML='<div class="empty-hof">evolve to populate</div>';
+  log('warn','System reset');
+}
+
+// ─────────────────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────────────────
+function setStatus(text,alive){
+  statusText.textContent=text;
+  statusDot.className='pulse'+(alive?' alive':'');
+}
+
+function updateStats(details,gen,maxGens,pop,complexity){
+  document.getElementById('sGen').textContent=gen;
+  document.getElementById('sPop').textContent=pop;
+  document.getElementById('sFit').textContent=(details.score*100).toFixed(0)+'%';
+  document.getElementById('sComplex').textContent=complexity;
+  const fb=document.getElementById('fitBars');
+  fb.innerHTML=`
+    <div class="fitness-bar-wrap">
+      <div class="bar-label"><span>fractal</span><span>${(details.frac*100).toFixed(0)}%</span></div>
+      <div class="bar-track"><div class="bar-fill fractal" style="width:${(details.frac*100).toFixed(1)}%"></div></div>
+    </div>
+    <div class="fitness-bar-wrap" style="margin-top:6px">
+      <div class="bar-label"><span>edge density</span><span>${(details.edge*100).toFixed(0)}%</span></div>
+      <div class="bar-track"><div class="bar-fill edge" style="width:${(details.edge*100).toFixed(1)}%"></div></div>
+    </div>
+    <div class="fitness-bar-wrap" style="margin-top:6px">
+      <div class="bar-label"><span>variance</span><span>${(details.var*100).toFixed(0)}%</span></div>
+      <div class="bar-track"><div class="bar-fill golden" style="width:${(details.var*100).toFixed(1)}%"></div></div>
+    </div>
+  `;
+}
+
+function updateEqDisplay(g1,g2){
+  document.getElementById('eqDisplay').innerHTML=printEq(g1);
+  document.getElementById('eqDisplay2').innerHTML=printEq(g2);
+  document.getElementById('overlayEq').textContent=
+    'F1: '+printEq(g1).replace(/<[^>]+>/g,'').slice(0,120);
+}
+
+function buildLineage(maxGens){
+  const wrap=document.getElementById('lineage');
+  wrap.innerHTML='';
+  const dots=Math.min(maxGens,60);
+  for(let i=0;i<dots;i++){
+    const d=document.createElement('div');d.className='gen-dot';wrap.appendChild(d);
+  }
+}
+
+function updateLineage(gen){
+  const dots=document.getElementById('lineage').children;
+  const maxGens=state?.maxGens||1;
+  const scale=dots.length/maxGens;
+  for(let i=0;i<dots.length;i++){
+    const threshold=(i+1)/scale;
+    if(gen>threshold) dots[i].className='gen-dot done';
+    else if(Math.round(gen*scale)===i) dots[i].className='gen-dot active';
+    else dots[i].className='gen-dot';
+  }
+}
+
+function saveHof(g1,g2,score){
+  // render thumbnail
+  const tc=document.createElement('canvas');tc.width=80;tc.height=80;
+  const tctx=tc.getContext('2d');
+  const res=40;
+  const grid=makeGrid(res);
+  const f1=evalGrid(g1,grid.xs,grid.ys,grid.rs,grid.thetas,grid.trs,grid.srs);
+  const f2=evalGrid(g2,grid.xs,grid.ys,grid.rs,grid.thetas,grid.trs,grid.srs);
+  const cmap=CMAPS[document.getElementById('ctrlCmap').value]||CMAPS.plasma;
+  const idata=tctx.createImageData(80,80);
+  const d=idata.data;
+  const f1n=norm01(f1);
+  let mnx=Infinity,mxx=-Infinity,mny=Infinity,mxy=-Infinity;
+  for(let i=0;i<f1.length;i++){if(f1[i]<mnx)mnx=f1[i];if(f1[i]>mxx)mxx=f1[i];if(f2[i]<mny)mny=f2[i];if(f2[i]>mxy)mxy=f2[i];}
+  for(let i=0;i<f1.length;i++){
+    const cx=Math.round(((f1[i]-mnx)/(mxx-mnx||1))*79);
+    const cy=Math.round(((f2[i]-mny)/(mxy-mny||1))*79);
+    if(cx<0||cx>=80||cy<0||cy>=80) continue;
+    const [r,g,b]=cmap(f1n[i]);
+    const idx=(cy*80+cx)*4;d[idx]=r;d[idx+1]=g;d[idx+2]=b;d[idx+3]=255;
+  }
+  tctx.putImageData(idata,0,0);
+  hofList.push({canvas:tc,score,g1:[...g1],g2:[...g2],gen:currentGen});
+  hofList.sort((a,b)=>b.score-a.score);
+  hofList=hofList.slice(0,9);
+  renderHof();
+}
+
+function renderHof(){
+  const grid=document.getElementById('hofGrid');
+  if(hofList.length===0){grid.innerHTML='<div class="empty-hof">evolve to populate</div>';return;}
+  grid.innerHTML='';
+  hofList.forEach((item,idx)=>{
+    const wrap=document.createElement('div');wrap.className='hof-thumb';
+    wrap.title=`Gen ${item.gen} — score: ${(item.score*100).toFixed(0)}%`;
+    wrap.appendChild(item.canvas);
+    const sc=document.createElement('div');sc.className='hof-score';
+    sc.textContent=(item.score*100).toFixed(0)+'%';
+    wrap.appendChild(sc);
+    wrap.addEventListener('click',()=>{
+      bestF1=[...item.g1];bestF2=[...item.g2];
+      drawArt(bestF1,bestF2);
+      log('info',`Restored gen ${item.gen} from hall of fame`);
+    });
+    grid.appendChild(wrap);
+  });
+}
+
+function log(type,msg){
+  const el=document.getElementById('sysLog');
+  const now=new Date();
+  const ts=`${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  const line=document.createElement('div');
+  line.className=`log-line ${type}`;
+  line.innerHTML=`<span class="t">${ts}</span><span class="msg">${msg}</span>`;
+  el.appendChild(line);
+  el.scrollTop=el.scrollHeight;
+  if(el.children.length>120) el.removeChild(el.firstChild);
+}
+
+// ─────────────────────────────────────────────────────────
+//  SLIDER LIVE UPDATE
+// ─────────────────────────────────────────────────────────
+[['ctrlGens','ctrlGensVal'],['ctrlPop','ctrlPopVal'],
+ ['ctrlRes','ctrlResVal'],['ctrlMut','ctrlMutVal']].forEach(([id,outId])=>{
+  const el=document.getElementById(id);
+  const out=document.getElementById(outId);
+  el.addEventListener('input',()=>out.textContent=el.value);
+});
+
+// ─────────────────────────────────────────────────────────
+//  BUTTON HANDLERS
+// ─────────────────────────────────────────────────────────
+document.getElementById('btnEvolve').addEventListener('click',()=>{
+  if(running){stopEvolution();document.getElementById('btnEvolve').textContent='▶ Evolve';}
+  else{startEvolution();document.getElementById('btnEvolve').textContent='⏸ Pause';}
+});
+
+document.getElementById('btnStep').addEventListener('click',()=>{
+  if(running) return;
+  if(!state||state.gen>=state.maxGens) initState();
+  stepGeneration();
+  setStatus(`gen ${state.gen}`,false);
+});
+
+document.getElementById('btnReset').addEventListener('click',()=>{
+  document.getElementById('btnEvolve').textContent='▶ Evolve';
+  resetAll();
+});
+
+document.getElementById('btnSave').addEventListener('click',()=>{
+  const link=document.createElement('a');
+  link.download=`evoart_gen${currentGen}.png`;
+  link.href=artCanvas.toDataURL('image/png');
+  link.click();
+  log('info','PNG saved to downloads');
+});
+
+let posterMode=false;
+document.getElementById('btnPoster').addEventListener('click',()=>{
+  posterMode=!posterMode;
+  document.body.classList.toggle('poster-mode',posterMode);
+  document.getElementById('posterBanner').classList.toggle('show',posterMode);
+  setTimeout(()=>{resizeCanvas();if(bestF1)drawArt(bestF1,bestF2);},50);
+});
+document.getElementById('btnExitPoster').addEventListener('click',()=>{
+  posterMode=false;
+  document.body.classList.remove('poster-mode');
+  document.getElementById('posterBanner').classList.remove('show');
+  setTimeout(()=>{resizeCanvas();if(bestF1)drawArt(bestF1,bestF2);},50);
+});
+
+// Re-render on mode/colormap change
+document.getElementById('ctrlMode').addEventListener('change',()=>{if(bestF1)drawArt(bestF1,bestF2);});
+document.getElementById('ctrlCmap').addEventListener('change',()=>{if(bestF1)drawArt(bestF1,bestF2);});
+
+// ─────────────────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────────────────
+log('info','EvoArt loaded — press ▶ Evolve to begin');
+log('info','GP engine: stack-based symbolic regression');
+log('info','Fitness: fractal dimension + edge density + variance');
+ctx.fillStyle='#000';ctx.fillRect(0,0,artCanvas.width,artCanvas.height);
+</script>
+</body>
+</html>
