@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>StackGPArt — Live Equation Evolution</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
@@ -53,12 +53,13 @@ canvas#art{display:block; max-width:100%; max-height:100%; object-fit:contain;}
 .overlay-gen{
   position:absolute;top:16px;left:16px;
   font-size:11px;color:rgba(255,255,255,0.8);letter-spacing:0.12em;font-weight:bold;
+  text-shadow: 0px 1px 3px rgba(0,0,0,0.8);
 }
 .overlay-eq{
   position:absolute;bottom:0;left:0;right:0;
   padding:14px 18px;
-  background:linear-gradient(transparent,rgba(0,0,0,0.85));
-  font-size:12px;color:rgba(255,255,255,0.8);word-break:break-all;line-height:1.6;
+  background:linear-gradient(transparent,rgba(0,0,0,0.95));
+  font-size:12px;color:rgba(255,255,255,0.9);word-break:break-all;line-height:1.6;
 }
 .sidebar{
   border-left:1px solid var(--border);
@@ -129,12 +130,42 @@ button.danger:hover{background:rgba(255,106,106,0.1)}
 .poster-mode .sidebar{display:none}
 .poster-mode .shell{grid-template-columns:1fr}
 .poster-mode canvas#art{image-rendering:auto}
+
+/* ── MOBILE OPTIMIZATIONS ── */
+@media (max-width: 800px) {
+  header { padding: 1rem; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .status-pill { align-self: flex-end; margin-top: -32px; }
+  
+  .shell { display: flex; flex-direction: column; height: auto; }
+  
+  /* Force canvas area to be a perfect square on mobile so it doesn't get squished */
+  .canvas-zone { width: 100vw; height: 100vw; max-height: 100vw; border-bottom: 1px solid var(--border); }
+  
+  .sidebar { border-left: none; height: auto; overflow: visible; padding-bottom: 3rem; }
+  
+  /* Touch Targets & Typography Bumps */
+  .sec-title { font-size: 13px; }
+  .stat-val { font-size: 1.6rem; }
+  .stat-label { font-size: 10px; }
+  .ctrl-label { font-size: 12px; }
+  .ctrl-val { font-size: 12px; }
+  
+  /* Make buttons and inputs large enough for thumbs */
+  button, select { min-height: 48px; font-size: 14px; }
+  input[type=range] { min-height: 36px; }
+  
+  .eq-box { font-size: 12px; max-height: 200px; }
+  .overlay-eq { font-size: 11px; padding: 10px 12px; }
+  
+  /* Hide poster mode button on phones, as mobile view is already a linear scrolling experience */
+  #btnPoster { display: none; }
+}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">StackGP<span>Art</span> — live equation evolution</div>
+  <div class="logo">StackGP<span>Art</span></div>
   <div class="status-pill">
     <div class="pulse" id="statusDot"></div>
     <span id="statusText">idle</span>
@@ -246,7 +277,7 @@ function resizeCanvas() {
   const zone = document.getElementById('canvasZone');
   if (!zone || zone.clientWidth === 0) return; 
   
-  // CRITICAL FIX: Force exact integer dimensions to prevent IndexSizeErrors
+  // Adjusted to ensure the canvas size scales properly whether in mobile or desktop view
   const size = Math.floor(Math.max(100, Math.min(zone.clientWidth, zone.clientHeight) * 1.5)); 
   artCanvas.width = size;
   artCanvas.height = size;
@@ -254,7 +285,7 @@ function resizeCanvas() {
   if(bestF1) drawArt(bestF1, bestF2);
 }
 window.addEventListener('resize', resizeCanvas);
-setTimeout(resizeCanvas, 200); // Slight delay ensures CSS Grid has fully painted
+setTimeout(resizeCanvas, 200); 
 
 const OP_NAMES = ['add','sub','mul','div','sin','cos','tanh','abs','neg','sqr','saw','tri','fold','wedge'];
 const OP_ARITIES = {add:2,sub:2,mul:2,div:2,sin:1,cos:1,tanh:1,abs:1,neg:1,sqr:1,saw:1,tri:1,fold:1,wedge:2};
@@ -379,7 +410,7 @@ function getFitness(genome, grid) {
 
 function tournamentSelect(pop, fitnesses, k){
   k = k || 4;
-  let best=0,bestF=-1; // Guaranteed to fall back to index 0
+  let best=0,bestF=-1;
   for(let i=0;i<k;i++){
     const idx=Math.floor(Math.random()*pop.length);
     if(fitnesses[idx]>bestF){bestF=fitnesses[idx];best=idx;}
@@ -438,7 +469,6 @@ function drawArt(g1, g2){
   const mode = document.getElementById('ctrlMode').value;
   const cmapName = document.getElementById('ctrlCmap').value;
   
-  // CRITICAL FIX: Ensure dimensions are strictly positive integers
   const W = Math.floor(Math.max(10, artCanvas.width));
   const H = Math.floor(Math.max(10, artCanvas.height));
   
@@ -601,7 +631,6 @@ function stepGeneration(){
 function tick() {
     if (!running) return;
     
-    // CRITICAL FIX: Wrapped in Try-Catch so the user knows exactly why it stopped
     try {
         stepGeneration();
     } catch (e) {
@@ -626,7 +655,6 @@ function tick() {
 function startEvolution(){
   if(running) return;
   
-  // Quick safety check for Canvas dimensions before starting
   if (artCanvas.width === 0 || artCanvas.height === 0) {
       resizeCanvas();
   }
